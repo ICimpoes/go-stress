@@ -9,9 +9,10 @@ import (
 )
 
 type Job struct {
-	Fn       func() error
-	Name     string
-	RunTimes int
+	Fn          func() error
+	Name        string
+	RunTimes    int
+	MaxParallel int
 }
 
 type Result struct {
@@ -26,7 +27,7 @@ type runner struct {
 	done    chan struct{}
 	results chan Result
 
-	logWriter   io.Writer
+	logWriter io.Writer
 
 	maxParallel int
 	jobs        []Job
@@ -75,7 +76,11 @@ func (r *runner) listenResults() {
 }
 
 func (r *runner) runJob(job Job) {
-	ch := make(chan struct{}, r.maxParallel)
+	maxParallel := job.MaxParallel
+	if maxParallel <= 0 {
+		maxParallel = r.maxParallel
+	}
+	ch := make(chan struct{}, maxParallel)
 	wg := sync.WaitGroup{}
 	forever := job.RunTimes <= 0
 loop:
