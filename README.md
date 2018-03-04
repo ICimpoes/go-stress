@@ -45,18 +45,14 @@ func main() {
 
 	runner := stress.New(maxParallel, jobs, aggregate)
 
-	go func() {
-		// stop after 42 seconds
-		<-time.After(42 * time.Second)
-		runner.Stop()
-	}()
+	// stop after 42 seconds
+	time.AfterFunc(42 * time.Second, r.Stop)
 
 	// Start runner
 	// this is blocking
 	runner.Start()
 
 	fmt.Println(results)
-
 }
 
 func aJob() error {
