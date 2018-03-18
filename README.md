@@ -97,7 +97,7 @@ func main() {
 		if r.JobNr%1000 == 0 {
 			fmt.Println("job nr:", r.JobNr)
 		}
-		totalTook += r.Took
+		totalTook += r.End.Sub(r.Start)
 		results[r.Error]++
 	}
 

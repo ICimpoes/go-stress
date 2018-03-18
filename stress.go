@@ -19,7 +19,8 @@ type Result struct {
 	Error error
 	Name  string
 	JobNr int
-	Took  time.Duration
+	Start time.Time
+	End   time.Time
 }
 
 type runner struct {
@@ -91,9 +92,9 @@ loop:
 			go func(i int) {
 				start := time.Now()
 				err := job.Fn()
-				took := time.Since(start)
+				end := time.Now()
 				<-ch
-				r.results <- Result{Name: job.Name, Error: err, Took: took, JobNr: i}
+				r.results <- Result{Name: job.Name, Error: err, Start: start, End: end, JobNr: i}
 				wg.Done()
 			}(i)
 		case <-r.done:
