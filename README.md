@@ -21,10 +21,9 @@ import (
 var aJobErr = errors.New("job error")
 
 func main() {
-
 	results := make(map[error]int)
 
-	jobs := []stress.Job{
+	jobs := []stress.Job[error]{
 		{
 			// the actual job which is a `func() error`
 			Fn:   aJob,
@@ -34,11 +33,11 @@ func main() {
 	}
 
 	// aggregation function
-	aggregate := func(r stress.Result) {
+	aggregate := func(r stress.Result[error]) {
 		if r.JobNr%1000 == 0 {
 			fmt.Println("job nr:", r.JobNr)
 		}
-		results[r.Error]++
+		results[r.Data]++
 	}
 
 	maxParallel := 100
@@ -46,7 +45,7 @@ func main() {
 	runner := stress.New(maxParallel, jobs, aggregate)
 
 	// stop after 42 seconds
-	time.AfterFunc(42 * time.Second, r.Stop)
+	time.AfterFunc(42 * time.Second, runner.Stop)
 
 	// Start runner
 	// this is blocking
@@ -80,11 +79,10 @@ import (
 var aJobErr = errors.New("job error")
 
 func main() {
-
 	results := make(map[error]int)
 	var totalTook time.Duration
 
-	jobs := []stress.Job{
+	jobs := []stress.Job[error]{
 		{
 			Fn:       aJob,
 			Name:     "A job",
@@ -93,12 +91,12 @@ func main() {
 		},
 	}
 
-	aggregate := func(r stress.Result) {
+	aggregate := func(r stress.Result[error]) {
 		if r.JobNr%1000 == 0 {
 			fmt.Println("job nr:", r.JobNr)
 		}
 		totalTook += r.End.Sub(r.Start)
-		results[r.Error]++
+		results[r.Data]++
 	}
 
 	runner := stress.New(100, jobs, aggregate)
@@ -107,7 +105,7 @@ func main() {
 
 	fmt.Println("results:", results)
 	fmt.Println("took", totalTook)
-	fmt.Println("average time in ms:", float64(totalTook)/float64(1000*time.Millisecond))
+	fmt.Println("average time in ms:", float64(totalTook)/float64(time.Second))
 }
 
 func aJob() error {
@@ -121,6 +119,7 @@ func aJob() error {
 ```
 
 3. Run `a job` for 1000 times and `job b` for 10 seconds in 100 go routines each
+
 ```go
 package main
 
@@ -128,6 +127,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/icimpoes/go-stress"
@@ -137,7 +138,6 @@ var aJobErr = errors.New("job error")
 var errJobB = errors.New("job error")
 
 func main() {
-
 	resultsA := make(map[error]int)
 	resultsB := make(map[error]int)
 
@@ -146,23 +146,23 @@ func main() {
 		"job B": resultsB,
 	}
 
-	jobs := []stress.Job{
+	jobs := []stress.Job[error]{
 		{
 			Fn:       aJob,
 			Name:     "A job",
 			RunTimes: 1000,
 		},
 		{
-			Fn:   JobB,
+			Fn:   jobB,
 			Name: "job B",
 		},
 	}
 
-	aggregate := func(r stress.Result) {
+	aggregate := func(r stress.Result[error]) {
 		if r.JobNr%1000 == 0 {
 			fmt.Printf("job %s nr: %d\n", r.Name, r.JobNr)
 		}
-		results[r.Name][r.Error]++
+		results[r.Name][r.Data]++
 	}
 
 	runner := stress.New(100, jobs, aggregate)
@@ -193,7 +193,7 @@ func aJob() error {
 	return nil
 }
 
-func JobB() error {
+func jobB() error {
 	time.Sleep(100 * time.Millisecond)
 	if rand.Intn(2) == 0 {
 		return errJobB
@@ -201,4 +201,37 @@ func JobB() error {
 	return nil
 }
 
+```
+
+
+4. Use simplified API
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/icimpoes/go-stress"
+)
+
+func main() {
+	sum := 0
+
+	ch := make(chan int)
+
+	stop := stress.Start(10, func() int {
+		return <-ch
+	}, func(i int) {
+		sum += i
+	})
+
+	for i := 0; i < 999999; i++ {
+		ch <- 1
+	}
+	close(ch)
+	stop()
+
+	fmt.Println(sum)
+}
 ```
