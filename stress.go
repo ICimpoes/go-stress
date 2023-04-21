@@ -8,37 +8,37 @@ import (
 	"time"
 )
 
-type Job struct {
-	Fn          func() error
+type Job[T any] struct {
+	Fn          func() T
 	Name        string
 	RunTimes    int
 	MaxParallel int
 }
 
-type Result struct {
-	Error error
+type Result[T any] struct {
+	Data  T
 	Name  string
 	JobNr int
 	Start time.Time
 	End   time.Time
 }
 
-type runner struct {
+type runner[T any] struct {
 	wg      sync.WaitGroup
 	done    chan struct{}
-	results chan Result
+	results chan Result[T]
 
 	logWriter io.Writer
 
 	maxParallel int
-	jobs        []Job
-	aggregate   func(Result)
+	jobs        []Job[T]
+	aggregate   func(Result[T])
 }
 
-func New(maxParallel int, jobs []Job, aggregate func(Result)) *runner {
-	return &runner{
+func New[T any](maxParallel int, jobs []Job[T], aggregate func(Result[T])) *runner[T] {
+	return &runner[T]{
 		done:        make(chan struct{}),
-		results:     make(chan Result, maxParallel),
+		results:     make(chan Result[T], maxParallel),
 		maxParallel: maxParallel,
 		jobs:        jobs,
 		aggregate:   aggregate,
@@ -46,18 +46,18 @@ func New(maxParallel int, jobs []Job, aggregate func(Result)) *runner {
 	}
 }
 
-func (r *runner) SetLogWriter(w io.Writer) {
+func (r *runner[T]) SetLogWriter(w io.Writer) {
 	r.logWriter = w
 }
 
-func (r *runner) Stop() {
+func (r *runner[T]) Stop() {
 	close(r.done)
 }
 
-func (r *runner) Start() {
+func (r *runner[T]) Start() {
 	for _, job := range r.jobs {
 		r.wg.Add(1)
-		go func(job Job) {
+		go func(job Job[T]) {
 			r.runJob(job)
 			r.wg.Done()
 		}(job)
@@ -70,13 +70,13 @@ func (r *runner) Start() {
 	r.listenResults()
 }
 
-func (r *runner) listenResults() {
+func (r *runner[T]) listenResults() {
 	for res := range r.results {
 		r.aggregate(res)
 	}
 }
 
-func (r *runner) runJob(job Job) {
+func (r *runner[T]) runJob(job Job[T]) {
 	maxParallel := job.MaxParallel
 	if maxParallel <= 0 {
 		maxParallel = r.maxParallel
@@ -91,10 +91,10 @@ loop:
 			wg.Add(1)
 			go func(i int) {
 				start := time.Now()
-				err := job.Fn()
+				res := job.Fn()
 				end := time.Now()
 				<-ch
-				r.results <- Result{Name: job.Name, Error: err, Start: start, End: end, JobNr: i}
+				r.results <- Result[T]{Name: job.Name, Data: res, Start: start, End: end, JobNr: i}
 				wg.Done()
 			}(i)
 		case <-r.done:
